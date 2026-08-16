@@ -6,18 +6,18 @@ import {
   Home,
   Layers3,
   LogOut,
-  Settings,
   Sparkles,
   X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { AuthProfile } from '../auth'
 import type { PageId } from '../types'
 import { BrandMark } from '../ui'
 
-const navItems: { id: PageId; label: string; icon: LucideIcon; badge?: string }[] = [
+const navItems: { id: PageId; label: string; icon: LucideIcon }[] = [
   { id: 'dashboard', label: '오늘의 학습', icon: Home },
   { id: 'concepts', label: '개념 라이브러리', icon: BookOpenText },
-  { id: 'flashcards', label: '플래시카드', icon: Layers3, badge: '12' },
+  { id: 'flashcards', label: '플래시카드', icon: Layers3 },
   { id: 'quiz', label: '퀴즈 랩', icon: BrainCircuit },
   { id: 'evidence', label: '논문 탐색', icon: FileSearch },
   { id: 'progress', label: '학습 리포트', icon: BarChart3 },
@@ -26,11 +26,15 @@ const navItems: { id: PageId; label: string; icon: LucideIcon; badge?: string }[
 interface SidebarProps {
   page: PageId
   mobileOpen: boolean
+  profile: AuthProfile
+  streak: number
+  dueCount: number
   onNavigate: (page: PageId) => void
   onClose: () => void
+  onLogout: () => void
 }
 
-export function Sidebar({ page, mobileOpen, onNavigate, onClose }: SidebarProps) {
+export function Sidebar({ page, mobileOpen, profile, streak, dueCount, onNavigate, onClose, onLogout }: SidebarProps) {
   return (
     <>
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
@@ -56,7 +60,7 @@ export function Sidebar({ page, mobileOpen, onNavigate, onClose }: SidebarProps)
               >
                 <Icon size={19} strokeWidth={1.8} />
                 <span>{item.label}</span>
-                {item.badge && <em>{item.badge}</em>}
+                {item.id === 'flashcards' && dueCount > 0 && <em>{dueCount}</em>}
               </button>
             )
           })}
@@ -69,13 +73,12 @@ export function Sidebar({ page, mobileOpen, onNavigate, onClose }: SidebarProps)
         </div>
 
         <div className="sidebar-footer">
-          <div className="avatar">약</div>
+          <div className="avatar">{profile.displayName.slice(0, 1)}</div>
           <div>
-            <strong>학습자</strong>
-            <span>6일 연속 학습 중</span>
+            <strong>{profile.displayName}</strong>
+            <span>{streak ? `${streak}일 연속 학습 중` : '첫 학습을 시작해 보세요'}</span>
           </div>
-          <button className="icon-button" aria-label="설정"><Settings size={17} /></button>
-          <button className="sr-only" aria-label="로그아웃"><LogOut size={17} /></button>
+          <button className="icon-button sidebar-logout" aria-label="로그아웃" title="로그아웃" onClick={onLogout}><LogOut size={17} /></button>
         </div>
       </aside>
       {mobileOpen && <button className="sidebar-backdrop" aria-label="메뉴 닫기" onClick={onClose} />}

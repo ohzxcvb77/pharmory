@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, BookOpenText, Check, FileSearch, Layers3, Search, X } from 'lucide-react'
 import './App.css'
+import { clearActiveProfile, getActiveProfile, subscribeToAuthLogout } from './auth'
+import type { AuthProfile } from './auth'
+import { AuthScreen } from './components/AuthScreen'
 import { ConceptLibrary } from './components/ConceptLibrary'
 import { Dashboard } from './components/Dashboard'
 import { EvidenceLibrary } from './components/EvidenceLibrary'
@@ -12,6 +15,7 @@ import { Topbar } from './components/Topbar'
 import { flashcards, topics } from './data'
 import { paperUrl } from './literature'
 import { scheduleReview } from './srs'
+import { getStudyMetrics } from './studyMetrics'
 import type { Flashcard, LiteraturePaper, PageId, QuizQuestion, TopicId } from './types'
 import { useLocalStudyData } from './useLocalStudyData'
 import { TopicIcon } from './ui'
@@ -91,7 +95,7 @@ function SearchPalette({
           {!normalized && (
             <>
               <button onClick={() => onSelectTopic('pkpd')}><span className="command-icon"><BookOpenText size={18} /></span><div><strong>약동학 · 약력학</strong><small>개념 라이브러리에서 시작</small></div><ArrowRight size={15} /></button>
-              <button onClick={() => onSelectCard('infectious')}><span className="command-icon"><Layers3 size={18} /></span><div><strong>감염 약물치료 복습</strong><small>만기 플래시카드 열기</small></div><ArrowRight size={15} /></button>
+              <button onClick={() => onSelectCard('infectious')}><span className="command-icon"><Layers3 size={18} /></span><div><strong>감염 약물치료 학습</strong><small>플래시카드 열기</small></div><ArrowRight size={15} /></button>
               <button onClick={onEvidence}><span className="command-icon"><FileSearch size={18} /></span><div><strong>영문 논문 탐색</strong><small>Europe PMC 실시간 검색</small></div><ArrowRight size={15} /></button>
             </>
           )}
@@ -105,16 +109,25 @@ function SearchPalette({
   )
 }
 
-function App() {
+function StudyWorkspace({
+  profile,
+  created,
+  onLogout,
+}: {
+  profile: AuthProfile
+  created: boolean
+  onLogout: () => void
+}) {
   const [page, setPage] = useState<PageId>('dashboard')
   const [mobileNav, setMobileNav] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [activeTopic, setActiveTopic] = useState<TopicId>('pkpd')
   const [flashTopic, setFlashTopic] = useState<TopicId | 'all'>('all')
-  const [toast, setToast] = useState('')
-  const { data, update } = useLocalStudyData()
+  const [toast, setToast] = useState(created ? '프로필을 만들었어요. 첫 학습을 시작해 볼까요?' : '')
+  const { data, update, storageError } = useLocalStudyData(profile.id)
 
   const allCards = useMemo(() => [...flashcards, ...data.generatedCards], [data.generatedCards])
+  const metrics = useMemo(() => getStudyMetrics(data, allCards), [allCards, data])
   const generatedPaperIds = useMemo(() => data.generatedCards.flatMap((card) => card.tags), [data.generatedCards])
 
   const navigate = (nextPage: PageId) => {
@@ -140,6 +153,10 @@ function App() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
+  useEffect(() => {
+    if (storageError) setToast(storageError)
+  }, [storageError])
+
   const studyTopic = (topicId: TopicId) => {
     setFlashTopic(topicId)
     navigate('flashcards')
@@ -150,7 +167,6 @@ function App() {
       ...current,
       reviewStates: { ...current.reviewStates, [card.id]: scheduleReview(current.reviewStates[card.id], grade) },
       reviewLogs: [...current.reviewLogs.slice(-499), { id: crypto.randomUUID(), cardId: card.id, topicId: card.topicId, grade, reviewedAt: new Date().toISOString() }],
-      totalMinutes: current.totalMinutes + 1,
     }))
     setToast(grade >= 2 ? '기억 간격을 늘렸어요.' : '이 카드를 오늘 다시 보여드릴게요.')
   }
@@ -159,7 +175,6 @@ function App() {
     update((current) => ({
       ...current,
       quizLogs: [...current.quizLogs.slice(-499), { id: crypto.randomUUID(), questionId: question.id, topicId: question.topicId, correct, confidence, answeredAt: new Date().toISOString() }],
-      totalMinutes: current.totalMinutes + 1,
     }))
   }
 
@@ -183,20 +198,35 @@ function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard': return <Dashboard data={data} onNavigate={navigate} />
-      case 'concepts': return <ConceptLibrary activeTopicId={activeTopic} onSelectTopic={setActiveTopic} onStudy={studyTopic} />
-      case 'flashcards': return <FlashcardStudy cards={allCards} reviewStates={data.reviewStates} activeTopicId={flashTopic} onChangeTopic={setFlashTopic} onReview={handleReview} onGoQuiz={() => navigate('quiz')} />
+      case 'dashboard': return <Dashboard data={data} metrics={metrics} displayName={profile.displayName} onNavigate={navigate} />
+      case 'concepts': return <ConceptLibrary cards={allCards} topicMastery={metrics.topicMastery} activeTopicId={activeTopic} onSelectTopic={setActiveTopic} onStudy={studyTopic} />
+      case 'flashcards': return <FlashcardStudy cards={allCards} reviewStates={data.reviewStates} newCardLimit={metrics.todayNewCardCount} activeTopicId={flashTopic} onChangeTopic={setFlashTopic} onReview={handleReview} onGoQuiz={() => navigate('quiz')} />
       case 'quiz': return <QuizLab onAnswer={handleQuizAnswer} onGoFlashcards={() => navigate('flashcards')} />
       case 'evidence': return <EvidenceLibrary savedPapers={data.savedPapers} generatedPaperIds={generatedPaperIds} onToggleSave={toggleSavePaper} onGenerateCard={generatePaperCard} />
-      case 'progress': return <ProgressReport data={data} onNavigate={navigate} />
+      case 'progress': return <ProgressReport data={data} metrics={metrics} onNavigate={navigate} />
     }
   }
 
   return (
     <div className="app-shell">
-      <Sidebar page={page} mobileOpen={mobileNav} onNavigate={navigate} onClose={() => setMobileNav(false)} />
+      <Sidebar
+        page={page}
+        mobileOpen={mobileNav}
+        profile={profile}
+        streak={metrics.streak}
+        dueCount={metrics.dueReviewCount}
+        onNavigate={navigate}
+        onClose={() => setMobileNav(false)}
+        onLogout={onLogout}
+      />
       <div className="app-main">
-        <Topbar page={page} onMenu={() => setMobileNav(true)} onSearch={() => setSearchOpen(true)} onNotify={() => setToast('오늘 복습 카드 12장이 준비되어 있어요.')} />
+        <Topbar
+          page={page}
+          hasNotification={metrics.dueReviewCount > 0}
+          onMenu={() => setMobileNav(true)}
+          onSearch={() => setSearchOpen(true)}
+          onNotify={() => setToast(metrics.dueReviewCount ? `지금 복습할 카드가 ${metrics.dueReviewCount}장 있어요.` : '현재 만기된 복습 카드는 없어요.')}
+        />
         {renderPage()}
       </div>
       <SearchPalette
@@ -209,6 +239,31 @@ function App() {
       />
       {toast && <div className="toast"><span className="toast-check"><Check size={14} /></span><span>{toast}</span></div>}
     </div>
+  )
+}
+
+function App() {
+  const [authSession, setAuthSession] = useState<{ profile: AuthProfile; created: boolean } | null>(() => {
+    const profile = getActiveProfile()
+    return profile ? { profile, created: false } : null
+  })
+
+  useEffect(() => subscribeToAuthLogout(() => setAuthSession(null)), [])
+
+  if (!authSession) {
+    return <AuthScreen onAuthenticated={(profile, created) => setAuthSession({ profile, created })} />
+  }
+
+  return (
+    <StudyWorkspace
+      key={authSession.profile.id}
+      profile={authSession.profile}
+      created={authSession.created}
+      onLogout={() => {
+        clearActiveProfile()
+        setAuthSession(null)
+      }}
+    />
   )
 }
 

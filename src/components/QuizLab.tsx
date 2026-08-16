@@ -88,7 +88,7 @@ export function QuizLab({
           <h1>아는 것과 <span>떠올리는 것</span>의 차이.</h1>
           <p>정답뿐 아니라 확신도를 함께 기록해 위험한 오개념을 찾아냅니다.</p>
         </div>
-        <div className="quiz-summary-pill"><Zap size={17} /><span><strong>오늘의 목표</strong><small>8문항 · 약 6분</small></span></div>
+        <div className="quiz-summary-pill"><Zap size={17} /><span><strong>현재 세션</strong><small>{questions.length}문항 · 약 {questions.length}분</small></span></div>
       </div>
 
       <div className="quiz-mode-grid">

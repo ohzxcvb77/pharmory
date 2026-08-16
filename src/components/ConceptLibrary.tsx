@@ -10,32 +10,38 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react'
-import { conceptLinks, flashcards, topics } from '../data'
-import type { TopicId } from '../types'
+import { conceptLinks, topics } from '../data'
+import type { Flashcard, TopicId } from '../types'
 import { SourceLink, TopicIcon } from '../ui'
 
 export function ConceptLibrary({
+  cards,
+  topicMastery,
   activeTopicId,
   onSelectTopic,
   onStudy,
 }: {
+  cards: Flashcard[]
+  topicMastery: Record<TopicId, number | null>
   activeTopicId: TopicId
   onSelectTopic: (topicId: TopicId) => void
   onStudy: (topicId: TopicId) => void
 }) {
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<'all' | 'weak' | 'strong'>('all')
+  const [filter, setFilter] = useState<'all' | 'unstarted' | 'weak' | 'strong'>('all')
   const activeTopic = topics.find((topic) => topic.id === activeTopicId) ?? topics[0]
   const filteredTopics = useMemo(() => {
     const normalized = query.toLowerCase().trim()
     return topics.filter((topic) => {
+      const mastery = topicMastery[topic.id]
       const matchesQuery = !normalized || [topic.name, topic.englishName, ...topic.concepts]
         .join(' ').toLowerCase().includes(normalized)
-      const matchesFilter = filter === 'all' || (filter === 'weak' ? topic.mastery < 60 : topic.mastery >= 70)
+      const matchesFilter = filter === 'all' || (filter === 'unstarted' ? mastery === null : mastery !== null && (filter === 'weak' ? mastery < 60 : mastery >= 70))
       return matchesQuery && matchesFilter
     })
-  }, [filter, query])
-  const activeCards = flashcards.filter((card) => card.topicId === activeTopic.id)
+  }, [filter, query, topicMastery])
+  const activeCards = cards.filter((card) => card.topicId === activeTopic.id)
+  const activeMastery = topicMastery[activeTopic.id]
 
   return (
     <div className="page concepts-page">
@@ -54,6 +60,7 @@ export function ConceptLibrary({
         <label className="library-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="약물, 기전, 개념 검색" /></label>
         <div className="segmented-control" aria-label="숙련도 필터">
           <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>전체</button>
+          <button className={filter === 'unstarted' ? 'active' : ''} onClick={() => setFilter('unstarted')}>학습 전</button>
           <button className={filter === 'weak' ? 'active' : ''} onClick={() => setFilter('weak')}>취약</button>
           <button className={filter === 'strong' ? 'active' : ''} onClick={() => setFilter('strong')}>안정</button>
         </div>
@@ -71,7 +78,7 @@ export function ConceptLibrary({
                 onClick={() => onSelectTopic(topic.id)}
               >
                 <span className={`topic-mini-icon ${topic.tone}`}><TopicIcon topic={topic} size={18} /></span>
-                <span><strong>{topic.name}</strong><small>{topic.cardCount} cards · {topic.mastery}%</small></span>
+                <span><strong>{topic.name}</strong><small>{cards.filter((card) => card.topicId === topic.id).length} cards · {topicMastery[topic.id] === null ? '학습 전' : `${topicMastery[topic.id]}%`}</small></span>
                 <ChevronRight size={16} />
               </button>
             ))}
@@ -89,9 +96,9 @@ export function ConceptLibrary({
               <h2>{activeTopic.name}</h2>
               <p>{activeTopic.description}</p>
             </div>
-            <div className="mastery-dial" style={{ '--mastery': `${activeTopic.mastery}%` } as React.CSSProperties}>
-              <span><strong>{activeTopic.mastery}</strong>%</span>
-              <small>기억 안정도</small>
+            <div className="mastery-dial" style={{ '--mastery': `${activeMastery ?? 0}%` } as React.CSSProperties}>
+              <span>{activeMastery === null ? <strong>—</strong> : <><strong>{activeMastery}</strong>%</>}</span>
+              <small>{activeMastery === null ? '학습 전' : '기억 안정도'}</small>
             </div>
           </div>
 
