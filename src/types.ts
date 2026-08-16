@@ -32,9 +32,6 @@ export interface Topic {
   description: string
   icon: string
   tone: 'sage' | 'blue' | 'amber' | 'plum' | 'coral' | 'teal'
-  mastery: number
-  cardCount: number
-  dueCount: number
   concepts: string[]
   highYield: string
 }
@@ -110,6 +107,4 @@ export interface UserStudyData {
   quizLogs: QuizLog[]
   generatedCards: Flashcard[]
   savedPapers: LiteraturePaper[]
-  streak: number
-  totalMinutes: number
 }

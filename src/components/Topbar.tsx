@@ -15,11 +15,13 @@ export function Topbar({
   onMenu,
   onSearch,
   onNotify,
+  hasNotification,
 }: {
   page: PageId
   onMenu: () => void
   onSearch: () => void
   onNotify: () => void
+  hasNotification: boolean
 }) {
   const meta = pageTitles[page]
   return (
@@ -39,7 +41,7 @@ export function Topbar({
         </button>
         <button className="icon-button notification-button" onClick={onNotify} aria-label="알림">
           <Bell size={19} />
-          <span />
+          {hasNotification && <span />}
         </button>
       </div>
     </header>

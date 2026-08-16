@@ -30,15 +30,21 @@ const buildDueQueue = (
   cards: Flashcard[],
   topicId: TopicId | 'all',
   reviewStates: Record<string, ReviewState>,
-) => cards.filter((card) => {
-  if (topicId !== 'all' && card.topicId !== topicId) return false
-  const dueAt = reviewStates[card.id]?.dueAt
-  return !dueAt || new Date(dueAt).getTime() <= Date.now()
-})
+  newCardLimit: number,
+) => {
+  const topicCards = cards.filter((card) => topicId === 'all' || card.topicId === topicId)
+  const dueCards = topicCards.filter((card) => {
+    const state = reviewStates[card.id]
+    return state && new Date(state.dueAt).getTime() <= Date.now()
+  })
+  const newCards = topicCards.filter((card) => !reviewStates[card.id]).slice(0, newCardLimit)
+  return [...dueCards, ...newCards]
+}
 
 export function FlashcardStudy({
   cards,
   reviewStates,
+  newCardLimit,
   activeTopicId,
   onChangeTopic,
   onReview,
@@ -46,6 +52,7 @@ export function FlashcardStudy({
 }: {
   cards: Flashcard[]
   reviewStates: Record<string, ReviewState>
+  newCardLimit: number
   activeTopicId: TopicId | 'all'
   onChangeTopic: (topicId: TopicId | 'all') => void
   onReview: (card: Flashcard, grade: Grade) => void
@@ -57,15 +64,18 @@ export function FlashcardStudy({
   const [grades, setGrades] = useState<Grade[]>([])
   const reviewStatesRef = useRef(reviewStates)
   reviewStatesRef.current = reviewStates
-  const [sessionCards, setSessionCards] = useState(() => buildDueQueue(cards, activeTopicId, reviewStates))
+  const newCardLimitRef = useRef(newCardLimit)
+  newCardLimitRef.current = newCardLimit
+  const [sessionCards, setSessionCards] = useState(() => buildDueQueue(cards, activeTopicId, reviewStates, newCardLimit))
 
   const current = sessionCards[index]
+  const currentState = current ? reviewStates[current.id] : undefined
   const currentTopic = current ? topics.find((topic) => topic.id === current.topicId) : undefined
   const finished = sessionCards.length > 0 && index >= sessionCards.length
   const topicCardCount = activeTopicId === 'all' ? cards.length : cards.filter((card) => card.topicId === activeTopicId).length
 
   useEffect(() => {
-    setSessionCards(buildDueQueue(cards, activeTopicId, reviewStatesRef.current))
+    setSessionCards(buildDueQueue(cards, activeTopicId, reviewStatesRef.current, newCardLimitRef.current))
     setIndex(0)
     setFlipped(false)
     setGrades([])
@@ -143,7 +153,7 @@ export function FlashcardStudy({
           <div className="completion-stats">
             <div><strong>{grades.filter((grade) => grade >= 2).length}</strong><span>안정 회상</span></div>
             <div><strong>{grades.filter((grade) => grade < 2).length}</strong><span>다시 볼 카드</span></div>
-            <div><strong>{Math.max(1, Math.round(sessionCards.length * 0.7))}m</strong><span>학습 시간</span></div>
+            <div><strong>약 {Math.max(1, Math.round(sessionCards.length * 0.7))}m</strong><span>예상 소요</span></div>
           </div>
           <div className="completion-actions"><button className="soft-button" onClick={restart}><RotateCcw size={16} /> 한 번 더</button><button className="primary-button" onClick={onGoQuiz}>퀴즈로 적용하기 <ArrowRight size={16} /></button></div>
         </section>
@@ -211,7 +221,7 @@ export function FlashcardStudy({
 
             <div className="card-nav-row">
               <button disabled={index === 0} onClick={() => { setIndex((value) => Math.max(0, value - 1)); setFlipped(false) }}><ArrowLeft size={16} /> 이전</button>
-              <span>카드 평가는 이 기기에 자동 저장됩니다.</span>
+              <span>카드 평가는 현재 학습 프로필에 자동 저장됩니다.</span>
               <button disabled={index === sessionCards.length - 1} onClick={() => { setIndex((value) => Math.min(sessionCards.length - 1, value + 1)); setFlipped(false) }}>건너뛰기 <ArrowRight size={16} /></button>
             </div>
           </main>
@@ -225,7 +235,7 @@ export function FlashcardStudy({
                   <path d="M4 13 C 43 13, 61 39, 91 46 S 154 50, 236 58" fill="none" stroke="#39745f" strokeWidth="3" />
                   <circle cx="91" cy="46" r="5" fill="#dff36a" stroke="#244d3f" strokeWidth="2" />
                 </svg>
-                <div><span>지금</span><span>다음 복습</span></div>
+                <div><span>지금</span><span>{currentState ? '다음 복습' : '평가 후 간격'}</span></div>
               </div>
               <dl><div><dt>안정도</dt><dd>{reviewStates[current.id]?.repetitions ? '강화 중' : '새 기억'}</dd></div><div><dt>기존 간격</dt><dd>{reviewStates[current.id]?.intervalDays ?? 0}일</dd></div><div><dt>회상 목표</dt><dd>90%</dd></div></dl>
             </section>
@@ -235,7 +245,7 @@ export function FlashcardStudy({
               <p>{current.source.journal} · {current.source.year}</p>
               <a href={current.source.url} target="_blank" rel="noreferrer">PubMed에서 확인 <ArrowRight size={14} /></a>
             </section>
-            <div className="micro-tip"><Clock3 size={16} /><p><strong>왜 10분 뒤인가요?</strong>놓친 카드는 같은 날 다시 꺼내 기억 흔적을 복구합니다.</p></div>
+            <div className="micro-tip"><Clock3 size={16} />{!currentState ? <p><strong>첫 카드예요.</strong>평가를 마치면 회상 결과에 맞춰 다음 간격을 계산합니다.</p> : currentState.lastGrade === 0 ? <p><strong>왜 10분 뒤인가요?</strong>놓친 카드는 같은 날 다시 꺼내 기억 흔적을 복구합니다.</p> : <p><strong>간격 반복 중이에요.</strong>기억이 안정될수록 다음 복습 간격이 길어집니다.</p>}</div>
           </aside>
         </div>
       ) : null}
