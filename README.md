@@ -1,0 +1,59 @@
+# Pharmory
+
+영문 의약학 근거를 한국어 학습 단위로 바꾸고, 능동 회상과 간격 반복으로 오래 기억하도록 돕는 약학 공부 앱입니다.
+
+**공개 앱:** https://ohzxcvb77.github.io/pharmory/
+
+## 주요 기능
+
+- 오늘의 복습 큐, 과목별 기억 안정도, 주간 학습 리포트
+- 근거 링크가 연결된 개념 지도와 고빈도 약리 핵심
+- 뒤집기·확신도·4단계 평가를 지원하는 플래시카드
+- 핵심 개념, 임상 사례, PK/TDM 계산을 섞은 퀴즈
+- 고확신 오답과 취약 연결을 따로 보여주는 오개념 레이더
+- Europe PMC 영문 생의학 문헌 실시간 검색
+- 초록을 출처 연결 플래시카드 초안으로 변환
+- 논문 저장, Open access 필터, 최신순·인용순 정렬
+- 브라우저 로컬 저장과 학습 기록 JSON 내보내기
+- 데스크톱·태블릿·모바일 반응형 레이아웃
+
+## 실행
+
+Node.js와 pnpm이 설치된 환경에서 다음 명령을 실행합니다.
+
+```bash
+pnpm install
+pnpm dev
+```
+
+화면에 표시되는 로컬 주소(기본값 `http://localhost:5173`)를 브라우저에서 엽니다.
+
+프로덕션 빌드는 다음과 같습니다.
+
+```bash
+pnpm build
+pnpm preview
+```
+
+## 근거 범위
+
+현재 프로토타입의 실시간 검색은 Europe PMC REST API를 사용합니다. Europe PMC가 색인한 영문 생의학 문헌의 서지정보와 공개 초록을 검색하며, 유료 원문을 복제하거나 저장하지 않습니다. 검색 결과에서 만든 카드는 초록 기반 초안이므로 연구 설계, 대상, 효과크기와 결론을 원문 링크에서 함께 확인하도록 표시합니다.
+
+운영 환경에서는 서버 측 근거 계층을 두고 PubMed, Europe PMC, Crossref, OpenAlex, DailyMed를 식별자(DOI → PMID → PMCID) 기준으로 통합하는 구조를 권장합니다. API 키, 호출 제한, 라이선스, 정정·철회 상태도 서버에서 관리해야 합니다.
+
+## 기술 구성
+
+- React 19 + TypeScript
+- Vite
+- Lucide 아이콘
+- Europe PMC REST API
+- 브라우저 `localStorage` 기반 학습 기록
+
+## 검증 명령
+
+```bash
+pnpm lint
+pnpm build
+```
+
+`main` 브랜치에 변경사항이 올라가면 GitHub Actions가 앱을 빌드하고 GitHub Pages에 자동 배포합니다.
